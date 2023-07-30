@@ -21,6 +21,7 @@ public class Tasks {
 	private String text;
 	private String name;
 	private LocalDateTime date;
+	private boolean done;
 
 
 }

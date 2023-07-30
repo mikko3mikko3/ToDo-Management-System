@@ -31,7 +31,8 @@ public class TaskController {
 	private TasksRepository repo;
 
 	@GetMapping("/main")
-	public String getCalendar(Model model) {
+	public String getCalendar(@AuthenticationPrincipal AccountUserDetails user,
+			@DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate date, Model model) {
 
 		// 1. 2次元表になるので、ListのListを用意する
 		// 2. 1週間分のLocalDateを格納するListを用意する
@@ -57,9 +58,10 @@ public class TaskController {
 		// 6.
 		// 2週目以降は単純に1日ずつ日を増やしながらLocalDateを求めてListへ格納していき、土曜日になったら1．のリストへ格納して新しいListを生成する
 		int length = LocalDate.now().lengthOfMonth(); // 今月の長さ
-		
+		LocalDate lastday = LocalDate.now().withDayOfMonth(length); // 今月月末の日付
+
 		for (int i = day.getDayOfMonth(); i <= length; i++) {
-			DayOfWeek w2 =day.getDayOfWeek();
+			DayOfWeek w2 = day.getDayOfWeek();
 			week.add(day);
 			if (w2 == DayOfWeek.SATURDAY) {
 				matrix.add(week);
@@ -77,12 +79,35 @@ public class TaskController {
 		matrix.add(week);
 
 		MultiValueMap<LocalDate, Tasks> tasks = new LinkedMultiValueMap<LocalDate, Tasks>();
+		
+//8. 管理者は全員分のタスクを見えるようにする	
+//		List<Tasks> list = null;
+//		if (user.getAuthorities().stream().map(GrantedAuthority::getAuthority).anyMatch(a -> a.equals("ROLE_ADMIN"))) {
+//			list = repo.findByDateBetweenAdmin(day, lastday);
+//		} else {
+//			list = repo.findByDateBetween(day, lastday, user.getName());
+//		}
+		
 		model.addAttribute("matrix", matrix);
 		model.addAttribute("tasks", tasks);
-
+		
 		return "/main";
 	}
 
+	
+	/**
+	 * タスクの新規作成画面.
+	 * 
+	 * @param model モデル
+	 * @param date  追加対象日
+	 * @return タスクの新規作成画面のンプレート名
+	 */
+	@GetMapping("/main/create/{date}")
+	public String create(@DateTimeFormat(pattern = "yyyy-MM-dd") @PathVariable LocalDate date, Model model) {
+
+		return "create";
+	}
+	
 	/**
 	 * 投稿を作成.
 	 * 
@@ -106,7 +131,8 @@ public class TaskController {
 		task.setName(user.getName());
 		task.setTitle(taskForm.getTitle());
 		task.setText(taskForm.getText());
-		task.setDate(taskForm.getDate().atTime(0,0));
+		task.setDate(taskForm.getDate().atTime(0, 0));
+		task.setDone(false);
 
 		repo.save(task);
 
@@ -119,19 +145,20 @@ public class TaskController {
 	 * @param taskForm 送信データ
 	 * @return 遷移先
 	 */
-	@PostMapping("/main/edit/{id}")
+	@PostMapping("/main/edit")
 	public String edit(@Validated TaskForm taskForm, BindingResult bindingResult,
-			@AuthenticationPrincipal AccountUserDetails user, Model model ) {
+			@AuthenticationPrincipal AccountUserDetails user, @PathVariable Integer id, Model model) {
 		// バリデーションの結果、エラーがあるかどうかチェック
-				if (bindingResult.hasErrors()) {
-					// エラーがある場合は編集画面を返す
-					Tasks task = repo.findById(taskForm.getId()).get();
-					model.addAttribute("taskForm", taskForm);
-					model.addAttribute("task", task);
-					return "edit";
-				}
-				return null;
-			}
+		if (bindingResult.hasErrors()) {
+			// エラーがある場合は編集画面を返す
+			Tasks task = repo.findById(taskForm.getId()).get();
+			;
+			model.addAttribute("taskForm", taskForm);
+			model.addAttribute("task", task);
+			return "edit";
+		}
+		return null;
+	}
 
 	/**
 	 * タスクの削除.
@@ -142,20 +169,7 @@ public class TaskController {
 	@PostMapping("/main/delete/{id}")
 	public String delete(@PathVariable Integer id) {
 		repo.deleteById(id);
-		return  "redirect:/main";
-	}
-
-	/**
-	 * タスクの新規作成画面.
-	 * 
-	 * @param model モデル
-	 * @param date  追加対象日
-	 * @return タスクの新規作成画面のンプレート名
-	 */
-	@GetMapping("/main/create/{date}")
-	public String create(@DateTimeFormat(pattern = "yyyy-MM-dd") @PathVariable LocalDate date, Model model) {
-
-		return "create";
+		return "redirect:/main";
 	}
 
 }

@@ -14,7 +14,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import com.dmm.task.service.AccountUserDetailsService;
 
 
-
+@SuppressWarnings("deprecation")
 @Configuration
 @EnableWebSecurity
 @EnableGlobalMethodSecurity(prePostEnabled = true)
