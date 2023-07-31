@@ -8,6 +8,7 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -33,14 +34,18 @@ public class TaskController {
 	@GetMapping("/main")
 	public String getCalendar(@AuthenticationPrincipal AccountUserDetails user,
 			@DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate date, Model model) {
+		
 
 		// 1. 2次元表になるので、ListのListを用意する
 		// 2. 1週間分のLocalDateを格納するListを用意する
-		List<LocalDate> week = new ArrayList<>();
 		List<List<LocalDate>> matrix = new ArrayList<>();
+		List<LocalDate> week = new ArrayList<>();
 
 		// 3. その月の1日のLocalDateを取得する
-		LocalDate firstday = LocalDate.now().withDayOfMonth(1);
+		LocalDate today = LocalDate.now();
+		LocalDate firstday = today.withDayOfMonth(1);
+		model.addAttribute("prev",today.minusMonths(1));
+		model.addAttribute("next",today.plusMonths(1));
 
 		// 4.
 		// 曜日を表すDayOfWeekを取得し、上で取得したLocalDateに曜日の値（DayOfWeek#getValue)をマイナスして前月分のLocalDateを求める
@@ -57,8 +62,8 @@ public class TaskController {
 
 		// 6.
 		// 2週目以降は単純に1日ずつ日を増やしながらLocalDateを求めてListへ格納していき、土曜日になったら1．のリストへ格納して新しいListを生成する
-		int length = LocalDate.now().lengthOfMonth(); // 今月の長さ
-		LocalDate lastday = LocalDate.now().withDayOfMonth(length); // 今月月末の日付
+		int length = today.lengthOfMonth(); // 今月の長さ
+		LocalDate lastday = today.withDayOfMonth(length); // 今月月末の日付
 
 		for (int i = day.getDayOfMonth(); i <= length; i++) {
 			DayOfWeek w2 = day.getDayOfWeek();
@@ -78,23 +83,29 @@ public class TaskController {
 		}
 		matrix.add(week);
 
+		// 8. 管理者は全員分のタスクを見えるようにする
+		List<Tasks> list;
+
+		if (user.getAuthorities().stream().map(GrantedAuthority::getAuthority).anyMatch(a -> a.equals("ROLE_ADMIN"))) {
+			list = repo.findByDateBetweenAdmin(firstday.atTime(0, 0), lastday.atTime(0, 0));
+		} else {
+			list = repo.findByDateBetween(firstday.atTime(0, 0), lastday.atTime(0, 0), user.getName());
+		}
+	
+
+		// 取得したデータをtasksに追加する
 		MultiValueMap<LocalDate, Tasks> tasks = new LinkedMultiValueMap<LocalDate, Tasks>();
-		
-//8. 管理者は全員分のタスクを見えるようにする	
-//		List<Tasks> list = null;
-//		if (user.getAuthorities().stream().map(GrantedAuthority::getAuthority).anyMatch(a -> a.equals("ROLE_ADMIN"))) {
-//			list = repo.findByDateBetweenAdmin(day, lastday);
-//		} else {
-//			list = repo.findByDateBetween(day, lastday, user.getName());
-//		}
-		
+		for (Tasks task : list) {
+			LocalDate d = task.getDate().toLocalDate();
+			tasks.add(d, task);
+		}
+
 		model.addAttribute("matrix", matrix);
 		model.addAttribute("tasks", tasks);
-		
+
 		return "/main";
 	}
 
-	
 	/**
 	 * タスクの新規作成画面.
 	 * 
@@ -104,10 +115,9 @@ public class TaskController {
 	 */
 	@GetMapping("/main/create/{date}")
 	public String create(@DateTimeFormat(pattern = "yyyy-MM-dd") @PathVariable LocalDate date, Model model) {
-
 		return "create";
 	}
-	
+
 	/**
 	 * 投稿を作成.
 	 * 
@@ -145,19 +155,30 @@ public class TaskController {
 	 * @param taskForm 送信データ
 	 * @return 遷移先
 	 */
-	@PostMapping("/main/edit")
-	public String edit(@Validated TaskForm taskForm, BindingResult bindingResult,
-			@AuthenticationPrincipal AccountUserDetails user, @PathVariable Integer id, Model model) {
-		// バリデーションの結果、エラーがあるかどうかチェック
-		if (bindingResult.hasErrors()) {
-			// エラーがある場合は編集画面を返す
-			Tasks task = repo.findById(taskForm.getId()).get();
-			;
-			model.addAttribute("taskForm", taskForm);
-			model.addAttribute("task", task);
-			return "edit";
-		}
-		return null;
+	@GetMapping("/main/edit/{id}")
+	public String Taskid(Model model, @PathVariable Integer id) {
+		Tasks task = repo.getById(id);
+		model.addAttribute("task", task);
+		return "/edit";
+	}
+
+	@PostMapping("/main/edit/{id}")
+	public String edit(@Validated TaskForm taskForm, BindingResult bindingResult, Model model,
+			@PathVariable Integer id) {
+
+		Tasks task = repo.getById(id);
+
+		model.addAttribute("task", task);
+
+		task.setName(task.getName());
+		task.setTitle(taskForm.getTitle());
+		task.setText(taskForm.getText());
+		task.setDate(taskForm.getDate().atTime(0, 0));
+		task.setDone(taskForm.isDone());
+
+		repo.save(task);
+
+		return "redirect:/main";
 	}
 
 	/**

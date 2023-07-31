@@ -18,11 +18,7 @@ public class TaskForm {
 	private String text;
 	@DateTimeFormat(pattern = "yyyy-MM-dd")
 	private LocalDate date;
-	
-	public Integer getId() {
-		// TODO 自動生成されたメソッド・スタブ
-		return null;
-	}
 
-	
-	}
+	private boolean done;
+
+}
