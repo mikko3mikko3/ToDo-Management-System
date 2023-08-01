@@ -34,7 +34,6 @@ public class TaskController {
 	@GetMapping("/main")
 	public String getCalendar(@AuthenticationPrincipal AccountUserDetails user,
 			@DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate date, Model model) {
-		
 
 		// 1. 2次元表になるので、ListのListを用意する
 		// 2. 1週間分のLocalDateを格納するListを用意する
@@ -42,15 +41,23 @@ public class TaskController {
 		List<LocalDate> week = new ArrayList<>();
 
 		// 3. その月の1日のLocalDateを取得する
-		LocalDate today = LocalDate.now();
-		LocalDate firstday = today.withDayOfMonth(1);
-		model.addAttribute("prev",today.minusMonths(1));
-		model.addAttribute("next",today.plusMonths(1));
+		LocalDate today;
+		if (date == null) { // 引数で渡ってきた dateが nullであれば、今月と判断する
+			// 3. その月の1日のLocalDateを取得する
+			today = LocalDate.now();
+			today = LocalDate.of(today.getYear(), today.getMonthValue(), 1);
+		} else {
+			// nullでなければ、前月 or 翌月が渡ってきているので、そのまま使う
+			today = date;
+		}
+
+		model.addAttribute("prev", today.minusMonths(1));
+		model.addAttribute("next", today.plusMonths(1));
 
 		// 4.
 		// 曜日を表すDayOfWeekを取得し、上で取得したLocalDateに曜日の値（DayOfWeek#getValue)をマイナスして前月分のLocalDateを求める
-		DayOfWeek w = firstday.getDayOfWeek();
-		LocalDate day = firstday.minusDays(w.getValue());
+		DayOfWeek w = today.getDayOfWeek();
+		LocalDate day = today.minusDays(w.getValue());
 
 		// 5. 1日ずつ増やしてLocalDateを求めていき、2．で作成したListへ格納していき、1週間分詰めたら1．のリストへ格納する
 		for (int i = 1; i <= 7; i++) {
@@ -87,11 +94,10 @@ public class TaskController {
 		List<Tasks> list;
 
 		if (user.getAuthorities().stream().map(GrantedAuthority::getAuthority).anyMatch(a -> a.equals("ROLE_ADMIN"))) {
-			list = repo.findByDateBetweenAdmin(firstday.atTime(0, 0), lastday.atTime(0, 0));
+			list = repo.findByDateBetweenAdmin(today.atTime(0, 0), lastday.atTime(0, 0));
 		} else {
-			list = repo.findByDateBetween(firstday.atTime(0, 0), lastday.atTime(0, 0), user.getName());
+			list = repo.findByDateBetween(today.atTime(0, 0), lastday.atTime(0, 0), user.getName());
 		}
-	
 
 		// 取得したデータをtasksに追加する
 		MultiValueMap<LocalDate, Tasks> tasks = new LinkedMultiValueMap<LocalDate, Tasks>();
