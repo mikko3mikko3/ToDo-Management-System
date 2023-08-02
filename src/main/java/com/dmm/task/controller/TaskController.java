@@ -2,6 +2,7 @@ package com.dmm.task.controller;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -50,7 +51,9 @@ public class TaskController {
 			// nullでなければ、前月 or 翌月が渡ってきているので、そのまま使う
 			today = date;
 		}
-
+		
+		String Str = today.format(DateTimeFormatter.ofPattern("yyyy年MM月"));
+		model.addAttribute("month", Str);
 		model.addAttribute("prev", today.minusMonths(1));
 		model.addAttribute("next", today.plusMonths(1));
 
